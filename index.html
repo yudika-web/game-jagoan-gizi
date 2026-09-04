@@ -1447,6 +1447,7 @@
                 if (Number.isFinite(requestedLevel)) currentLevel = Phaser.Math.Clamp(requestedLevel, 1, 8);
                 this.level = clampCurrentLevel('IntroScene.init');
                 this.input.enabled = true;
+                if (this.input.keyboard) this.input.keyboard.enabled = true;
                 this.introStarting = false;
             }
             preload() {
@@ -1530,42 +1531,27 @@
                         fontSize: '24px', fontStyle: 'bold', color: '#4CAF50'
                     }).setOrigin(0.5);
 
-                    // Paksa input aktif kembali saat IntroScene dipakai ulang setelah layar hasil.
+                    // Paksa seluruh input aktif kembali saat IntroScene dipakai ulang setelah
+                    // layar hasil. Level yang akan dimulai disimpan di scene, bukan hanya pada
+                    // state global, supaya transisi level berikutnya selalu deterministik.
                     this.input.enabled = true;
+                    if (this.input.keyboard) this.input.keyboard.enabled = true;
                     this.introStarting = false;
 
-                    // Rectangle transparan lebih konsisten menerima input daripada Zone pada
-                    // browser/touch runtime tertentu.
+                    // Rectangle transparan layar penuh menjadi satu-satunya target tap. Input
+                    // native document/canvas sengaja tidak dipakai karena listener lintas-scene
+                    // dapat tertinggal dan membuat IntroScene kedua kehilangan event yang benar.
                     const startHitArea = this.add.rectangle(640, 360, 1280, 720, 0x000000, 0.001)
                         .setDepth(1000)
                         .setInteractive({ useHandCursor: true });
-                    const inputReadyAt = performance.now() + 120;
-                    const canvas = this.game.canvas;
-
-                    const cleanupIntroInput = () => {
-                        startHitArea.off('pointerdown', startLevel);
-                        this.input.off('pointerdown', startLevel);
-                        if (this.input.keyboard) {
-                            this.input.keyboard.off('keydown-SPACE', startLevel);
-                            this.input.keyboard.off('keydown-ENTER', startLevel);
-                        }
-                        if (canvas) canvas.removeEventListener('pointerdown', startLevel);
-                        document.removeEventListener('pointerdown', startLevel, true);
-                        document.removeEventListener('touchstart', startLevel, true);
-                        document.removeEventListener('mousedown', startLevel, true);
-                        if (this.introAutoStartTimer) {
-                            window.clearTimeout(this.introAutoStartTimer);
-                            this.introAutoStartTimer = null;
-                        }
-                    };
+                    const inputReadyAt = this.time.now + 180;
 
                     const startLevel = () => {
                         // Event pembuka dari tombol NEXT LEVEL dapat sampai pada frame yang
                         // sama. Abaikan event itu tanpa menghapus listener untuk tap berikutnya.
-                        if (performance.now() < inputReadyAt || this.introStarting) return;
+                        if (this.time.now < inputReadyAt || this.introStarting) return;
                         this.introStarting = true;
                         cleanupIntroInput();
-                        this.input.enabled = false;
                         startHitArea.disableInteractive();
                         tapText.setText('MEMULAI LEVEL...').setColor('#FFEB3B');
 
@@ -1575,8 +1561,18 @@
 
                         try {
                             console.log('Tap intro diterima, memulai level:', level);
-                            // GameScene menyalakan UIScene sendiri setelah create() berhasil.
-                            this.scene.start('GameScene');
+                            // Jalankan perpindahan pada tick berikutnya agar pergantian scene
+                            // tidak terjadi di tengah dispatch pointerdown Phaser.
+                            this.time.delayedCall(0, () => {
+                                try {
+                                    currentLevel = level;
+                                    this.scene.start('GameScene', { level });
+                                } catch (error) {
+                                    this.introStarting = false;
+                                    this.input.enabled = true;
+                                    showSceneLoadError(this, error);
+                                }
+                            });
                         } catch (error) {
                             this.introStarting = false;
                             this.input.enabled = true;
@@ -1584,22 +1580,19 @@
                         }
                     };
 
-                    // Tiga jalur input dengan guard yang sama: objek layar penuh, scene,
-                    // dan canvas native sebagai fallback untuk browser mobile tertentu.
+                    const cleanupIntroInput = () => {
+                        startHitArea.off('pointerdown', startLevel);
+                        if (this.input.keyboard) {
+                            this.input.keyboard.off('keydown-SPACE', startLevel);
+                            this.input.keyboard.off('keydown-ENTER', startLevel);
+                        }
+                    };
+
                     startHitArea.on('pointerdown', startLevel);
-                    this.input.on('pointerdown', startLevel);
                     if (this.input.keyboard) {
                         this.input.keyboard.on('keydown-SPACE', startLevel);
                         this.input.keyboard.on('keydown-ENTER', startLevel);
                     }
-                    if (canvas) canvas.addEventListener('pointerdown', startLevel, { passive: true });
-                    document.addEventListener('pointerdown', startLevel, true);
-                    document.addEventListener('touchstart', startLevel, { capture: true, passive: true });
-                    document.addEventListener('mousedown', startLevel, true);
-
-                    // Fallback deterministik: perangkat yang tidak meneruskan event sentuh
-                    // tetap masuk ke permainan dan tidak terkunci di IntroScene.
-                    this.introAutoStartTimer = window.setTimeout(startLevel, 1800);
 
                     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanupIntroInput);
                 } catch (error) {
@@ -1679,6 +1672,15 @@
             constructor() { 
                 super({ key: 'GameScene' }); 
                 this.mobileInput = { jump: false, slide: false, left: false, right: false };
+            }
+
+            init(data) {
+                const requestedLevel = Number.parseInt(data?.level, 10);
+                if (Number.isFinite(requestedLevel)) {
+                    currentLevel = Phaser.Math.Clamp(requestedLevel, 1, 8);
+                }
+                this.input.enabled = true;
+                if (this.input.keyboard) this.input.keyboard.enabled = true;
             }
 
             setupMobileControls() {
@@ -2999,7 +3001,6 @@
                     if (isTransitioning) return; try { if (saveData.soundOn) this.sound.play('sfx_click'); } catch(e){}
                     if (stars >= 1 && completedLevel < 8) {
                         isTransitioning = true;
-                        this.input.enabled = false;
                         nextBtn.disableInteractive();
                         nextTxt.disableInteractive();
                         startLevelIntro(this, completedLevel + 1);
