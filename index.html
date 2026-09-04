@@ -263,15 +263,23 @@
             const parsedLevel = Number.parseInt(requestedLevel, 10);
             const nextLevel = Number.isFinite(parsedLevel) ? Phaser.Math.Clamp(parsedLevel, 1, 8) : 1;
 
-            currentLevel = nextLevel;
-            gameState.savedCheckpoint = null;
-            stopLingeringLevelScenes(scene);
+            try {
+                currentLevel = nextLevel;
+                gameState.savedCheckpoint = null;
+                stopLingeringLevelScenes(scene);
 
-            // Menunda satu tick mencegah event klik NEXT LEVEL ikut terbawa ke
-            // IntroScene dan memberi SceneManager waktu menyelesaikan shutdown lama.
-            scene.time.delayedCall(0, () => {
+                // Mulai scene berikutnya langsung dari event tombol. Sebelumnya transisi
+                // ditaruh di delayedCall milik LevelCompleteScene setelah input dimatikan.
+                // Pada sebagian browser/runtime, callback itu tidak sempat diproses dan
+                // layar hasil terlihat membeku. IntroScene sudah memiliki inputReadyAt,
+                // sehingga event klik NEXT LEVEL tidak akan dianggap sebagai tap mulai.
                 scene.scene.start('IntroScene', { level: nextLevel });
-            });
+                return true;
+            } catch (error) {
+                if (scene.input) scene.input.enabled = true;
+                showSceneLoadError(scene, error);
+                return false;
+            }
         }
 
         const ASSET_URLS = Object.freeze({
