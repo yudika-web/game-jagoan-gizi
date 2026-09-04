@@ -223,11 +223,55 @@
 
             try {
                 cleanupEvaluationBuff(scene);
-                scene.scene.start('LevelCompleteScene');
+                // Bawa nomor level secara eksplisit. Mengandalkan currentLevel saja
+                // membuat result dan loader level berikutnya rawan membaca state global
+                // yang sudah berubah di tengah pergantian scene.
+                const completedLevel = Phaser.Math.Clamp(
+                    Number.parseInt(scene.level ?? currentLevel, 10) || 1,
+                    1,
+                    8
+                );
+                scene.scene.stop('UIScene');
+                scene.scene.start('LevelCompleteScene', { level: completedLevel });
             } catch (error) {
                 scene.resultTransitionStarted = false;
                 showSceneLoadError(scene, error);
             }
+        }
+
+        const LEVEL_RUNTIME_SCENES = Object.freeze([
+            'GameScene', 'UIScene', 'PauseScene', 'GameOverScene', 'QuizScene',
+            'TutorialPopupScene', 'LevelEvaluationScene', 'SortNutrisiScene',
+            'UrutkanPencernaanScene', 'LevelCompleteScene'
+        ]);
+
+        function stopLingeringLevelScenes(scene) {
+            const callerKey = scene?.sys?.settings?.key;
+            LEVEL_RUNTIME_SCENES.forEach(key => {
+                if (key === callerKey) return;
+                try {
+                    if (scene.scene.isActive(key) || scene.scene.isPaused(key) || scene.scene.isSleeping(key)) {
+                        scene.scene.stop(key);
+                    }
+                } catch (error) {
+                    console.warn('Gagal membersihkan scene lama:', key, error);
+                }
+            });
+        }
+
+        function startLevelIntro(scene, requestedLevel) {
+            const parsedLevel = Number.parseInt(requestedLevel, 10);
+            const nextLevel = Number.isFinite(parsedLevel) ? Phaser.Math.Clamp(parsedLevel, 1, 8) : 1;
+
+            currentLevel = nextLevel;
+            gameState.savedCheckpoint = null;
+            stopLingeringLevelScenes(scene);
+
+            // Menunda satu tick mencegah event klik NEXT LEVEL ikut terbawa ke
+            // IntroScene dan memberi SceneManager waktu menyelesaikan shutdown lama.
+            scene.time.delayedCall(0, () => {
+                scene.scene.start('IntroScene', { level: nextLevel });
+            });
         }
 
         const ASSET_URLS = Object.freeze({
@@ -1307,18 +1351,27 @@
 
         class IntroScene extends Phaser.Scene {
             constructor() { super({ key: 'IntroScene' }); }
+            init(data) {
+                const requestedLevel = Number.parseInt(data?.level, 10);
+                if (Number.isFinite(requestedLevel)) currentLevel = Phaser.Math.Clamp(requestedLevel, 1, 8);
+                this.level = clampCurrentLevel('IntroScene.init');
+                this.input.enabled = true;
+                this.introStarting = false;
+            }
             preload() {
-                const level = clampCurrentLevel('IntroScene.preload');
+                const level = this.level || clampCurrentLevel('IntroScene.preload');
                 const bgKey = 'bg_level' + level;
                 const musicKey = 'bgm_level' + level;
                 this.load.setCORS('anonymous');
 
                 if (this.levelLoadErrorHandler) this.load.off('loaderror', this.levelLoadErrorHandler);
+                if (this.levelLoadProgressHandler) this.load.off('progress', this.levelLoadProgressHandler);
                 this.levelLoadErrorHandler = file => console.warn('Gagal load:', file.key, file.src);
                 this.load.on('loaderror', this.levelLoadErrorHandler);
                 this.load.once('complete', () => {
                     console.log('Load level selesai');
                     this.load.off('loaderror', this.levelLoadErrorHandler);
+                    this.load.off('progress', this.levelLoadProgressHandler);
                 });
 
                 queueImage(this, bgKey, ASSET_URLS.background + 'BG%20Level%20' + level + '.png');
@@ -1362,13 +1415,14 @@
                 this.levelLoadingText = this.add.text(640, 650, 'MENYIAPKAN LEVEL ' + level + '...', {
                     fontFamily: PIXEL_FONT, fontSize: '20px', fontStyle: 'bold', color: '#FFFFFF'
                 }).setOrigin(0.5);
-                this.load.on('progress', value => {
+                this.levelLoadProgressHandler = value => {
                     if (this.levelLoadingText) this.levelLoadingText.setText('MENYIAPKAN LEVEL ' + level + '... ' + Math.round(value * 100) + '%');
-                });
+                };
+                this.load.on('progress', this.levelLoadProgressHandler);
             }
             create() {
                 try {
-                    const level = clampCurrentLevel('IntroScene.create');
+                    const level = this.level || clampCurrentLevel('IntroScene.create');
                     ensureGameplayFallbackTextures(this);
                     ensureLevelFallbackTextures(this, level);
                     ensureAnimations(this);
@@ -1481,7 +1535,10 @@
                         box.setInteractive({ useHandCursor: true }); txt.setInteractive({ useHandCursor: true });
                         let starString = '⭐'.repeat(lvlData.stars) + '☆'.repeat(3 - lvlData.stars);
                         let starTxt = this.add.text(xPos, yPos + 30, starString, { fontSize: '18px', padding: { left: 10, right: 10, top: 5, bottom: 5 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-                        const handleSelect = () => { try { if (saveData.soundOn) this.sound.play('sfx_click'); } catch(e){} currentLevel = i; this.scene.start('IntroScene'); };
+                        const handleSelect = () => {
+                            try { if (saveData.soundOn) this.sound.play('sfx_click'); } catch(e){}
+                            startLevelIntro(this, i);
+                        };
                         box.on('pointerdown', handleSelect); txt.on('pointerdown', handleSelect); starTxt.on('pointerdown', handleSelect);
                         box.on('pointerover', () => box.setFillStyle(0x4CAF50)); box.on('pointerout', () => box.setFillStyle(0x2196F3));
                     } else { this.add.text(xPos, yPos + 30, 'LOCKED', { fontSize: '20px', color: '#FF5252' }).setOrigin(0.5); }
@@ -2743,9 +2800,16 @@
 
         class LevelCompleteScene extends Phaser.Scene {
             constructor() { super({ key: 'LevelCompleteScene' }); }
+            init(data) {
+                const completedLevel = Number.parseInt(data?.level, 10);
+                this.level = Number.isFinite(completedLevel)
+                    ? Phaser.Math.Clamp(completedLevel, 1, 8)
+                    : clampCurrentLevel('LevelCompleteScene.init');
+                currentLevel = this.level;
+            }
             create() {
                 try {
-                clampCurrentLevel('LevelCompleteScene.create');
+                const completedLevel = this.level || clampCurrentLevel('LevelCompleteScene.create');
                 this.scene.get('AudioScene').stopMusic();
                 try { if (saveData.soundOn) this.sound.play('sfx_win'); } catch(e){}
                 this.scene.bringToTop();
@@ -2769,14 +2833,14 @@
                 let starString = ''; for (let i = 1; i <= 3; i++) { starString += (i <= stars) ? '⭐ ' : '☆ '; }
                 this.add.text(640, startY + 210, starString.trim(), { fontSize: '48px', padding: { top: 10, bottom: 10 } }).setOrigin(0.5);
 
-                let tipStr = levelTips[currentLevel - 1] || "Makan makanan bergizi seimbang setiap hari!";
+                let tipStr = levelTips[completedLevel - 1] || "Makan makanan bergizi seimbang setiap hari!";
                 const resultTip = this.add.text(640, startY + 290, `💡 TIPS EDUKASI:\n${tipStr}`, {
                     fontFamily: BODY_FONT, fontSize: '19px', fontStyle: 'italic', color: '#03A9F4',
                     align: 'center', wordWrap: { width: 900 }, lineSpacing: 5
                 }).setOrigin(0.5);
                 fitText(resultTip, 900, 92, 14);
 
-                let currentLvlKey = 'level' + currentLevel;
+                let currentLvlKey = 'level' + completedLevel;
                 if (!saveData.levels[currentLvlKey]) saveData.levels[currentLvlKey] = { unlocked: true, stars: 0, bestScore: 0 };
 
                 let isNewRecord = false;
@@ -2784,8 +2848,8 @@
                 if (finalScore > saveData.levels[currentLvlKey].bestScore) { saveData.levels[currentLvlKey].bestScore = finalScore; }
                 saveData.levels[currentLvlKey].stars = Math.max(saveData.levels[currentLvlKey].stars, stars);
                 
-                if (stars >= 1 && currentLevel < 8) {
-                    let nextLvlKey = 'level' + (currentLevel + 1);
+                if (stars >= 1 && completedLevel < 8) {
+                    let nextLvlKey = 'level' + (completedLevel + 1);
                     if (!saveData.levels[nextLvlKey]) saveData.levels[nextLvlKey] = { unlocked: false, stars: 0, bestScore: 0 };
                     saveData.levels[nextLvlKey].unlocked = true;
                 }
@@ -2802,11 +2866,17 @@
                 retryBtn.on('pointerdown', handleLevelRetry); retryTxt.on('pointerdown', handleLevelRetry);
 
                 let nextBtn = this.add.rectangle(640, btnY, 220, 60, 0xFF9800).setInteractive({ useHandCursor: true });
-                let nextTxt = this.add.text(640, btnY, currentLevel < 8 ? 'NEXT LEVEL' : 'TAMAT', { fontSize: '24px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+                let nextTxt = this.add.text(640, btnY, completedLevel < 8 ? 'NEXT LEVEL' : 'TAMAT', { fontSize: '24px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
                 const handleNext = () => {
                     if (isTransitioning) return; try { if (saveData.soundOn) this.sound.play('sfx_click'); } catch(e){}
-                    if (stars >= 1 && currentLevel < 8) { isTransitioning = true; currentLevel++; this.scene.start('IntroScene'); } 
-                    else if (currentLevel >= 8) { isTransitioning = true; this.scene.start('MainMenuScene'); } 
+                    if (stars >= 1 && completedLevel < 8) {
+                        isTransitioning = true;
+                        this.input.enabled = false;
+                        nextBtn.disableInteractive();
+                        nextTxt.disableInteractive();
+                        startLevelIntro(this, completedLevel + 1);
+                    } 
+                    else if (completedLevel >= 8) { isTransitioning = true; this.scene.start('MainMenuScene'); } 
                     else { alert("Harus dapat minimal 1 bintang untuk ke level selanjutnya!"); }
                 };
                 nextBtn.on('pointerdown', handleNext); nextTxt.on('pointerdown', handleNext);
