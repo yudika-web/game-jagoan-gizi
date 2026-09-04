@@ -3170,8 +3170,9 @@
             scale: {
                 // FIT mempertahankan seluruh area game 16:9 agar judul, HUD, dan tombol
                 // tidak terpotong pada HP landscape yang lebih lebar dari 16:9.
-                mode: Phaser.Scale.FIT,
-                // Posisi ditangani Flexbox agar tidak terjadi pemusatan ganda.
+                mode: Phaser.Scale.ENVELOP,
+                // Kanvas memenuhi layar fullscreen tanpa menyisakan area hitam.
+                // Area permainan tetap memakai rasio 16:9.
                 autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: 1280,
                 height: 720,
