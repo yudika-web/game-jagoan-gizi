@@ -1446,8 +1446,43 @@
         }
 
         class GameScene extends Phaser.Scene {
-            constructor() { super({ key: 'GameScene' }); }
-            
+            constructor() { 
+                super({ key: 'GameScene' }); 
+                this.mobileInput = { jump: false, slide: false, left: false, right: false };
+            }
+
+            setupMobileControls() {
+                this.mobileInput = { jump: false, slide: false, left: false, right: false };
+                this.input.on('pointerdown', (pointer) => {
+                    this.touchStart = { x: pointer.x, y: pointer.y, time: Date.now() };
+                });
+
+                this.input.on('pointerup', (pointer) => {
+                    const start = this.touchStart;
+                    if (!start) return;
+
+                    const dx = pointer.x - start.x;
+                    const dy = pointer.y - start.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const duration = Date.now() - start.time;
+
+                    // Tap = jump
+                    if (distance < 35 && duration < 400) {
+                        this.mobileInput.jump = true;
+                        return;
+                    }
+
+                    // Swipe controls
+                    if (Math.abs(dy) > Math.abs(dx)) {
+                        if (dy < -50) this.mobileInput.jump = true;   // swipe up
+                        if (dy > 50) this.mobileInput.slide = true;   // swipe down
+                    } else {
+                        if (dx < -50) this.mobileInput.left = true;   // swipe left
+                        if (dx > 50) this.mobileInput.right = true;   // swipe right
+                    }
+                });
+            }
+
             create() {
                 try {
                 const level = clampCurrentLevel('GameScene.create');
@@ -1521,7 +1556,9 @@
                 this.physics.add.overlap(this.player, this.enemyGroup, this.hitEnemy, null, this);
                 this.physics.add.overlap(this.player, this.enemyProjectileGroup, this.hitProjectile, null, this);
 
-                this.cursors = this.input.keyboard.createCursorKeys(); this.spaceBar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+                this.cursors = this.input.keyboard.createCursorKeys(); 
+                this.spaceBar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+                this.setupMobileControls();
 
                 this.decayTimer = this.time.addEvent({
                     delay: 1000,
@@ -1729,8 +1766,8 @@
                 
                 if (this.isBossBattle) {
                     speed = Math.min(speed, 400);
-                    if (this.cursors.left.isDown) { this.player.body.setVelocityX(-speed); this.player.setFlipX(true); } 
-                    else if (this.cursors.right.isDown) { this.player.body.setVelocityX(speed); this.player.setFlipX(false); } 
+                    if (this.cursors.left.isDown || this.mobileInput.left) { this.player.body.setVelocityX(-speed); this.player.setFlipX(true); } 
+                    else if (this.cursors.right.isDown || this.mobileInput.right) { this.player.body.setVelocityX(speed); this.player.setFlipX(false); } 
                     else { this.player.body.setVelocityX(0); }
                 } else {
                     this.player.body.setVelocityX(speed); this.player.setFlipX(false);
@@ -1739,7 +1776,9 @@
                 const onGround = this.player.body.touching.down;
 
                 if (onGround) this.player.jumps = 0;
-                const justJumped = Phaser.Input.Keyboard.JustDown(this.spaceBar) || Phaser.Input.Keyboard.JustDown(this.cursors.up);
+                const justJumped = Phaser.Input.Keyboard.JustDown(this.spaceBar) || 
+                    Phaser.Input.Keyboard.JustDown(this.cursors.up) || this.mobileInput.jump; 
+                this.mobileInput.jump = false;
                 
                 if (justJumped && this.player.jumps < 2 && !this.player.isSliding && !this.player.isHit) {
                     this.player.body.setVelocityY(jumpVel); this.player.jumps++;
@@ -1748,9 +1787,10 @@
 
                 if (this.player.isHit) {
                     this.player.anims.stop(); this.player.setTexture('hit');
-                } else if (this.cursors.down.isDown && onGround && !this.player.isSliding) {
+                } else if ((this.cursors.down.isDown || this.mobileInput.slide) && onGround && !this.player.isSliding) {
                     this.player.isSliding = true; this.player.anims.stop(); this.player.setTexture('slide');
                     this.player.body.setSize(40, 40); this.player.body.setOffset(this.player.width/2 - 20, this.player.height - 40); 
+                    this.mobileInput.slide = false;
                     this.time.delayedCall(500, () => {
                         this.player.isSliding = false; this.player.anims.play('run', true);
                         this.player.body.setSize(40, 80); this.player.body.setOffset(this.player.width/2 - 20, this.player.height - 80);
@@ -2709,12 +2749,18 @@
                 this.add.text(640, 80, 'HOW TO PLAY', { fontSize: '48px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5);
                 
                 let textStyle = { fontFamily: BODY_FONT, fontSize: '19px', color: '#FFF', wordWrap: { width: 1040 }, lineSpacing: 9 };
-                let content = "• JUMP & DOUBLE JUMP: Tekan SPACE/UP satu kali untuk lompat, atau dua kali untuk lompat ganda di udara.\n" +
-                    "• SLIDE: Tekan DOWN saat karakter di lantai untuk meluncur dan menghindari rintangan di atas kepala.\n" +
+                let content = "📱 KONTROL HP:\n" +
+                    "• TAP LAYAR: Lompat. Tap dua kali saat di udara untuk Double Jump.\n" +
+                    "• SWIPE ATAS: Lompat / Double Jump.\n" +
+                    "• SWIPE BAWAH: Slide untuk melewati rintangan atas.\n" +
+                    "• SWIPE KIRI/KANAN: Bergerak saat mode pertarungan Boss.\n\n" +
+                    "⌨️ KONTROL PC:\n" +
+                    "• SPACE/UP: Lompat dan Double Jump.\n" +
+                    "• DOWN: Slide.\n\n" +
                     "• INJAK BAKTERI: Lompat dan mendarat tepat di atas bakteri untuk mengalahkannya!\n" +
-                    "• BALANCED MEAL: Kumpulkan Karbo, Protein, Sayur, Buah, dan Air sesuai target di kiri atas layar untuk bonus +1000 poin!\n" +
-                    "• SUGAR & JUNK METER: Jangan terlalu banyak makan junk food/minuman manis agar karakter tidak melambat.\n" +
-                    "• QUIZ BOX (❓): Ambil kotak tanda tanya dan jawab kuis dengan benar untuk mendapat buff (Kebal, Double Poin, atau Ekstra Life).";
+                    "• BALANCED MEAL: Kumpulkan Karbo, Protein, Sayur, Buah, dan Air sesuai target untuk bonus poin.\n" +
+                    "• SUGAR & JUNK METER: Hindari terlalu banyak makanan manis dan junk food agar karakter tidak melambat.\n" +
+                    "• QUIZ BOX (❓): Ambil kotak tanda tanya dan jawab kuis untuk mendapat buff (Kebal, Double Poin, atau Ekstra Life).";
                 
                 const instructions = this.add.text(640, 320, content, textStyle).setOrigin(0.5);
                 fitText(instructions, 1040, 420, 16);
