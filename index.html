@@ -463,9 +463,12 @@
             8: { left: 0, top: 56, right: 79, bottom: 203, sourceW: 80, sourceH: 260 }
         });
 
-        // Level 1–2 sengaja tidak dimasukkan karena posisi stackedCrate-nya
-        // sudah sesuai. Koreksi bbox hanya berlaku untuk aset level 3–8.
+        // Koreksi mengikuti batas piksel nontransparan setiap aset. Khusus Level 1,
+        // terdapat ruang transparan 13 px di bawah gambar; bounds ini menurunkan
+        // visual sampai menempel tanah sekaligus menyelaraskan hitbox dengan kompor.
+        // Level 2 tetap memakai konfigurasi bawaan karena posisinya sudah sesuai.
         const stackedCrateVisualBounds = Object.freeze({
+            1: { left: 1, top: 12, right: 80, bottom: 147, sourceW: 80, sourceH: 160 },
             3: { left: 3, top: 17, right: 78, bottom: 137, sourceW: 80, sourceH: 160 },
             4: { left: 0, top: 20, right: 80, bottom: 139, sourceW: 80, sourceH: 160 },
             5: { left: 0, top: 26, right: 78, bottom: 133, sourceW: 80, sourceH: 160 },
@@ -930,31 +933,111 @@
             { id: 'taco', name: 'Taco', category: 'Junk Food', nutrients: ['Lemak', 'Natrium'], function: 'Konsumsi secukupnya.', fact: 'Isian daging dan keju pada taco membuatnya cukup tinggi lemak dan natrium.' }
         ];
 
+        const completedLevelCount = data => Object.values(data.levels || {}).filter(level => (level.stars || 0) > 0).length;
+        const totalStarCount = data => Object.values(data.levels || {}).reduce((total, level) => total + (level.stars || 0), 0);
+        const foodpediaCount = data => Array.isArray(data.foodpediaUnlocked) ? data.foodpediaUnlocked.length : 0;
+        const progress = (value, target) => `${Math.min(value || 0, target)}/${target}`;
+
         const achievementsData = [
-            { id: 'fruit_lover', title: 'FRUIT LOVER', desc: 'Kumpulkan 20 Buah', getProgress: (s) => `${Math.min(s.fruits, 20)}/20`, condition: (s) => s.fruits >= 20 },
-            { id: 'veggie_hero', title: 'VEGGIE HERO', desc: 'Kumpulkan 20 Sayur', getProgress: (s) => `${Math.min(s.veggies, 20)}/20`, condition: (s) => s.veggies >= 20 },
-            { id: 'hydration_master', title: 'HYDRATION MASTER', desc: 'Kumpulkan 30 Air', getProgress: (s) => `${Math.min(s.water, 30)}/30`, condition: (s) => s.water >= 30 },
-            { id: 'balanced_hero', title: 'BALANCED HERO', desc: 'Capai 5x Balanced Meal', getProgress: (s) => `${Math.min(s.balancedMeals, 5)}/5`, condition: (s) => s.balancedMeals >= 5 },
-            { id: 'bacteria_dodger', title: 'BACTERIA DODGER', desc: 'Hindari 20 Bakteri', getProgress: (s) => `${Math.min(s.bacteriaDodged, 20)}/20`, condition: (s) => s.bacteriaDodged >= 20 },
-            { id: 'perfect_run', title: 'PERFECT RUN', desc: 'Selesaikan 1 Level Tanpa Luka', getProgress: (s) => `${Math.min(s.perfectRuns, 1)}/1`, condition: (s) => s.perfectRuns >= 1 },
-            { id: 'quiz_master', title: 'QUIZ MASTER', desc: 'Jawab Benar 10 Kuis', getProgress: (s) => `${Math.min(s.quizzesCorrect, 10)}/10`, condition: (s) => s.quizzesCorrect >= 10 },
-            { id: 'clean_eater', title: 'CLEAN EATER', desc: '5 Level Tanpa Crash/Heavy Mode', getProgress: (s) => `${Math.min(s.cleanRuns || 0, 5)}/5`, condition: (s) => (s.cleanRuns || 0) >= 5 }
+            { id: 'first_step', title: 'FIRST STEP', desc: 'Selesaikan 1 Level', getProgress: (s, d) => progress(completedLevelCount(d), 1), condition: (s, d) => completedLevelCount(d) >= 1 },
+            { id: 'halfway_hero', title: 'HALFWAY HERO', desc: 'Selesaikan 4 Level', getProgress: (s, d) => progress(completedLevelCount(d), 4), condition: (s, d) => completedLevelCount(d) >= 4 },
+            { id: 'digestive_champion', title: 'DIGESTIVE CHAMPION', desc: 'Selesaikan Semua Level', getProgress: (s, d) => progress(completedLevelCount(d), 8), condition: (s, d) => completedLevelCount(d) >= 8 },
+
+            { id: 'star_rookie', title: 'STAR ROOKIE', desc: 'Kumpulkan 8 Bintang', getProgress: (s, d) => progress(totalStarCount(d), 8), condition: (s, d) => totalStarCount(d) >= 8 },
+            { id: 'star_champion', title: 'STAR CHAMPION', desc: 'Kumpulkan 16 Bintang', getProgress: (s, d) => progress(totalStarCount(d), 16), condition: (s, d) => totalStarCount(d) >= 16 },
+            { id: 'perfect_galaxy', title: 'PERFECT GALAXY', desc: 'Kumpulkan 24 Bintang', getProgress: (s, d) => progress(totalStarCount(d), 24), condition: (s, d) => totalStarCount(d) >= 24 },
+
+            { id: 'score_hunter', title: 'SCORE HUNTER', desc: 'Raih Skor 2.000', getProgress: (s, d) => progress(d.highScore, 2000), condition: (s, d) => d.highScore >= 2000 },
+            { id: 'score_legend', title: 'SCORE LEGEND', desc: 'Raih Skor 3.500', getProgress: (s, d) => progress(d.highScore, 3500), condition: (s, d) => d.highScore >= 3500 },
+
+            { id: 'fruit_starter', title: 'FRUIT STARTER', desc: 'Kumpulkan 5 Buah', getProgress: s => progress(s.fruits, 5), condition: s => s.fruits >= 5 },
+            { id: 'fruit_lover', title: 'FRUIT LOVER', desc: 'Kumpulkan 20 Buah', getProgress: s => progress(s.fruits, 20), condition: s => s.fruits >= 20 },
+            { id: 'fruit_legend', title: 'FRUIT LEGEND', desc: 'Kumpulkan 50 Buah', getProgress: s => progress(s.fruits, 50), condition: s => s.fruits >= 50 },
+
+            { id: 'veggie_starter', title: 'VEGGIE STARTER', desc: 'Kumpulkan 5 Sayur', getProgress: s => progress(s.veggies, 5), condition: s => s.veggies >= 5 },
+            { id: 'veggie_hero', title: 'VEGGIE HERO', desc: 'Kumpulkan 20 Sayur', getProgress: s => progress(s.veggies, 20), condition: s => s.veggies >= 20 },
+            { id: 'veggie_legend', title: 'VEGGIE LEGEND', desc: 'Kumpulkan 50 Sayur', getProgress: s => progress(s.veggies, 50), condition: s => s.veggies >= 50 },
+
+            { id: 'water_starter', title: 'WATER STARTER', desc: 'Kumpulkan 10 Air', getProgress: s => progress(s.water, 10), condition: s => s.water >= 10 },
+            { id: 'hydration_master', title: 'HYDRATION MASTER', desc: 'Kumpulkan 30 Air', getProgress: s => progress(s.water, 30), condition: s => s.water >= 30 },
+            { id: 'ocean_soul', title: 'OCEAN SOUL', desc: 'Kumpulkan 60 Air', getProgress: s => progress(s.water, 60), condition: s => s.water >= 60 },
+
+            { id: 'balanced_beginner', title: 'BALANCED BEGINNER', desc: 'Capai 1x Balanced Meal', getProgress: s => progress(s.balancedMeals, 1), condition: s => s.balancedMeals >= 1 },
+            { id: 'balanced_hero', title: 'BALANCED HERO', desc: 'Capai 5x Balanced Meal', getProgress: s => progress(s.balancedMeals, 5), condition: s => s.balancedMeals >= 5 },
+            { id: 'nutrition_master', title: 'NUTRITION MASTER', desc: 'Capai 15x Balanced Meal', getProgress: s => progress(s.balancedMeals, 15), condition: s => s.balancedMeals >= 15 },
+
+            { id: 'bacteria_scout', title: 'BACTERIA SCOUT', desc: 'Hindari 5 Bakteri', getProgress: s => progress(s.bacteriaDodged, 5), condition: s => s.bacteriaDodged >= 5 },
+            { id: 'bacteria_dodger', title: 'BACTERIA DODGER', desc: 'Hindari 20 Bakteri', getProgress: s => progress(s.bacteriaDodged, 20), condition: s => s.bacteriaDodged >= 20 },
+            { id: 'bacteria_nemesis', title: 'BACTERIA NEMESIS', desc: 'Hindari 50 Bakteri', getProgress: s => progress(s.bacteriaDodged, 50), condition: s => s.bacteriaDodged >= 50 },
+
+            { id: 'perfect_run', title: 'PERFECT RUN', desc: '1 Level Tanpa Luka', getProgress: s => progress(s.perfectRuns, 1), condition: s => s.perfectRuns >= 1 },
+            { id: 'flawless_three', title: 'FLAWLESS THREE', desc: '3 Level Tanpa Luka', getProgress: s => progress(s.perfectRuns, 3), condition: s => s.perfectRuns >= 3 },
+            { id: 'untouchable', title: 'UNTOUCHABLE', desc: '8 Level Tanpa Luka', getProgress: s => progress(s.perfectRuns, 8), condition: s => s.perfectRuns >= 8 },
+
+            { id: 'quiz_starter', title: 'QUIZ STARTER', desc: 'Jawab Benar 3 Kuis', getProgress: s => progress(s.quizzesCorrect, 3), condition: s => s.quizzesCorrect >= 3 },
+            { id: 'quiz_master', title: 'QUIZ MASTER', desc: 'Jawab Benar 10 Kuis', getProgress: s => progress(s.quizzesCorrect, 10), condition: s => s.quizzesCorrect >= 10 },
+            { id: 'quiz_genius', title: 'QUIZ GENIUS', desc: 'Jawab Benar 25 Kuis', getProgress: s => progress(s.quizzesCorrect, 25), condition: s => s.quizzesCorrect >= 25 },
+
+            { id: 'clean_start', title: 'CLEAN START', desc: '1 Level Tanpa Crash', getProgress: s => progress(s.cleanRuns, 1), condition: s => (s.cleanRuns || 0) >= 1 },
+            { id: 'clean_eater', title: 'CLEAN EATER', desc: '5 Level Tanpa Crash', getProgress: s => progress(s.cleanRuns, 5), condition: s => (s.cleanRuns || 0) >= 5 },
+            { id: 'healthy_legend', title: 'HEALTHY LEGEND', desc: '8 Level Tanpa Crash', getProgress: s => progress(s.cleanRuns, 8), condition: s => (s.cleanRuns || 0) >= 8 },
+
+            { id: 'foodpedia_scout', title: 'FOODPEDIA SCOUT', desc: 'Buka 10 Koleksi', getProgress: (s, d) => progress(foodpediaCount(d), 10), condition: (s, d) => foodpediaCount(d) >= 10 },
+            { id: 'foodpedia_explorer', title: 'FOODPEDIA EXPLORER', desc: 'Buka 25 Koleksi', getProgress: (s, d) => progress(foodpediaCount(d), 25), condition: (s, d) => foodpediaCount(d) >= 25 },
+            { id: 'foodpedia_scholar', title: 'FOODPEDIA SCHOLAR', desc: 'Buka 40 Koleksi', getProgress: (s, d) => progress(foodpediaCount(d), 40), condition: (s, d) => foodpediaCount(d) >= 40 }
         ];
 
-        function checkAndUnlockAchievements(scene) {
-            let newlyUnlocked = false;
-            achievementsData.forEach(ach => {
-                if (!saveData.achievements.includes(ach.id) && ach.condition(saveData.stats)) {
-                    saveData.achievements.push(ach.id); newlyUnlocked = true;
-                    let container = scene.add.container(640, -50).setDepth(1000).setScrollFactor(0);
-                    let bg = scene.add.rectangle(0, 0, 400, 70, 0x4CAF50).setStrokeStyle(3, 0xFFFFFF);
-                    let txt = scene.add.text(0, 0, `🏆 ACHIEVEMENT UNLOCKED:\n${ach.title}`, { fontSize: '18px', fontStyle: 'bold', color: '#FFF', align: 'center', padding: { left: 10, right: 10, top: 5, bottom: 5 } }).setOrigin(0.5);
-                    container.add([bg, txt]);
-                    try { if (saveData.soundOn) scene.sound.play('sfx_buff'); } catch(e){}
-                    scene.tweens.add({ targets: container, y: 80, duration: 500, yoyo: true, hold: 3000, onComplete: () => container.destroy() });
+        function unlockEarnedAchievements() {
+            if (!saveData) return [];
+            if (!Array.isArray(saveData.achievements)) saveData.achievements = [];
+
+            const newlyUnlocked = achievementsData.filter(ach =>
+                !saveData.achievements.includes(ach.id) && ach.condition(saveData.stats, saveData)
+            );
+            newlyUnlocked.forEach(ach => saveData.achievements.push(ach.id));
+            if (newlyUnlocked.length > 0) SaveManager.saveGame(saveData);
+            return newlyUnlocked;
+        }
+
+        function showNextAchievementToast(scene) {
+            if (!scene || scene.achievementToastActive || !scene.achievementToastQueue?.length) return;
+            scene.achievementToastActive = true;
+            const ach = scene.achievementToastQueue.shift();
+            const container = scene.add.container(640, -50).setDepth(1000).setScrollFactor(0);
+            const bg = scene.add.rectangle(0, 0, 460, 70, 0x4CAF50).setStrokeStyle(3, 0xFFFFFF);
+            const txt = scene.add.text(0, 0, `🏆 ACHIEVEMENT UNLOCKED:\n${ach.title}`, {
+                fontSize: '18px', fontStyle: 'bold', color: '#FFF', align: 'center',
+                padding: { left: 10, right: 10, top: 5, bottom: 5 }
+            }).setOrigin(0.5);
+            container.add([bg, txt]);
+            try { if (saveData.soundOn) scene.sound.play('sfx_buff'); } catch(e){}
+            scene.tweens.add({
+                targets: container, y: 80, duration: 400, yoyo: true, hold: 1800,
+                onComplete: () => {
+                    container.destroy();
+                    scene.achievementToastActive = false;
+                    showNextAchievementToast(scene);
                 }
             });
-            if (newlyUnlocked) SaveManager.saveGame(saveData);
+        }
+
+        function queueAchievementToast(scene, ach) {
+            if (!scene || !scene.add || !scene.tweens) return;
+            if (!Array.isArray(scene.achievementToastQueue)) scene.achievementToastQueue = [];
+            if (!scene.achievementToastCleanupBound) {
+                scene.achievementToastCleanupBound = true;
+                scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+                    scene.achievementToastQueue = [];
+                    scene.achievementToastActive = false;
+                    scene.achievementToastCleanupBound = false;
+                });
+            }
+            scene.achievementToastQueue.push(ach);
+            showNextAchievementToast(scene);
+        }
+
+        function checkAndUnlockAchievements(scene) {
+            unlockEarnedAchievements().forEach(ach => queueAchievementToast(scene, ach));
         }
 
         let currentLevel = 1;
@@ -2687,24 +2770,60 @@
 
         class AchievementScene extends Phaser.Scene {
             constructor() { super({ key: 'AchievementScene' }); }
+            init(data) {
+                const requestedPage = Number.parseInt(data?.page, 10);
+                this.currentPage = Number.isFinite(requestedPage) ? Math.max(0, requestedPage) : 0;
+            }
             create() {
                 this.scene.get('AudioScene').playMusic('bgm_menu'); this.add.rectangle(0, 0, 1280, 720, 0x1a1a2e).setOrigin(0,0);
-                this.add.text(640, 60, 'ACHIEVEMENTS', { fontSize: '48px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5);
+                unlockEarnedAchievements();
 
-                let startX = 640, startY = 160;
-                achievementsData.forEach((ach, index) => {
-                    let isUnlocked = saveData.achievements.includes(ach.id); let yPos = startY + (index * 65);
-                    let box = this.add.rectangle(startX, yPos, 800, 55, isUnlocked ? 0x2E7D32 : 0x222222).setStrokeStyle(2, isUnlocked ? 0x4CAF50 : 0x555555);
-                    let star = this.add.text(startX - 360, yPos, isUnlocked ? '🌟' : '⭐', { fontSize: '24px', color: isUnlocked ? '#FFF' : '#555', padding: { left: 10, right: 10, top: 10, bottom: 10 } }).setOrigin(0.5);
+                const itemsPerPage = 7;
+                const totalPages = Math.max(1, Math.ceil(achievementsData.length / itemsPerPage));
+                this.currentPage = Phaser.Math.Clamp(this.currentPage, 0, totalPages - 1);
+                const startIndex = this.currentPage * itemsPerPage;
+                const pageItems = achievementsData.slice(startIndex, startIndex + itemsPerPage);
+                const unlockedCount = achievementsData.filter(ach => saveData.achievements.includes(ach.id)).length;
+
+                this.add.text(640, 48, 'ACHIEVEMENTS', { fontSize: '42px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5);
+                this.add.text(640, 96, `TERBUKA ${unlockedCount} / ${achievementsData.length}`, {
+                    fontSize: '20px', fontStyle: 'bold', color: '#FFEB3B'
+                }).setOrigin(0.5);
+
+                let startX = 640, startY = 155;
+                pageItems.forEach((ach, index) => {
+                    let isUnlocked = saveData.achievements.includes(ach.id); let yPos = startY + (index * 58);
+                    this.add.rectangle(startX, yPos, 860, 48, isUnlocked ? 0x2E7D32 : 0x222222).setStrokeStyle(2, isUnlocked ? 0x4CAF50 : 0x555555);
+                    let star = this.add.text(startX - 395, yPos, isUnlocked ? '🌟' : '⭐', { fontSize: '22px', color: isUnlocked ? '#FFF' : '#555', padding: { left: 8, right: 8, top: 8, bottom: 8 } }).setOrigin(0.5);
                     if (!isUnlocked) star.setAlpha(0.3);
-                    this.add.text(startX - 320, yPos, ach.title, { fontSize: '20px', fontStyle: 'bold', color: isUnlocked ? '#FFF' : '#888' }).setOrigin(0, 0.5);
-                    this.add.text(startX - 80, yPos, ach.desc, { fontSize: '18px', color: isUnlocked ? '#DDD' : '#666' }).setOrigin(0, 0.5);
-                    let progressText = isUnlocked ? 'COMPLETE' : ach.getProgress(saveData.stats);
-                    this.add.text(startX + 360, yPos, progressText, { fontSize: '18px', fontStyle: 'bold', color: isUnlocked ? '#FFEB3B' : '#FF5252' }).setOrigin(1, 0.5);
+                    const title = this.add.text(startX - 355, yPos, ach.title, { fontSize: '18px', fontStyle: 'bold', color: isUnlocked ? '#FFF' : '#888' }).setOrigin(0, 0.5);
+                    fitText(title, 235, 38, 14);
+                    const description = this.add.text(startX - 105, yPos, ach.desc, { fontSize: '16px', color: isUnlocked ? '#DDD' : '#666' }).setOrigin(0, 0.5);
+                    fitText(description, 300, 38, 13);
+                    let progressText = isUnlocked ? 'COMPLETE' : ach.getProgress(saveData.stats, saveData);
+                    this.add.text(startX + 395, yPos, progressText, { fontSize: '16px', fontStyle: 'bold', color: isUnlocked ? '#FFEB3B' : '#FF5252' }).setOrigin(1, 0.5);
                 });
-                
-                let backBtn = this.add.rectangle(640, 660, 200, 50, 0xF44336).setInteractive({ useHandCursor: true });
-                let backTxt = this.add.text(640, 660, 'KEMBALI', { fontSize: '22px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+                this.add.text(640, 575, `Halaman ${this.currentPage + 1} / ${totalPages}`, { fontSize: '18px', color: '#FFF' }).setOrigin(0.5);
+
+                const prevBtn = this.add.text(420, 615, '◀ SEBELUMNYA', {
+                    fontSize: '20px', fontStyle: 'bold', color: this.currentPage > 0 ? '#2196F3' : '#555555'
+                }).setOrigin(0.5);
+                if (this.currentPage > 0) {
+                    prevBtn.setInteractive({ useHandCursor: true });
+                    prevBtn.on('pointerdown', () => this.scene.restart({ page: this.currentPage - 1 }));
+                }
+
+                const nextBtn = this.add.text(860, 615, 'BERIKUTNYA ▶', {
+                    fontSize: '20px', fontStyle: 'bold', color: this.currentPage < totalPages - 1 ? '#2196F3' : '#555555'
+                }).setOrigin(0.5);
+                if (this.currentPage < totalPages - 1) {
+                    nextBtn.setInteractive({ useHandCursor: true });
+                    nextBtn.on('pointerdown', () => this.scene.restart({ page: this.currentPage + 1 }));
+                }
+
+                let backBtn = this.add.rectangle(640, 665, 200, 46, 0xF44336).setInteractive({ useHandCursor: true });
+                let backTxt = this.add.text(640, 665, 'KEMBALI', { fontSize: '20px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
                 const handleBack = () => { try { if (saveData.soundOn) this.sound.play('sfx_click'); } catch(e){} this.scene.start('MainMenuScene'); };
                 backBtn.on('pointerdown', handleBack); backTxt.on('pointerdown', handleBack);
             }
@@ -2830,7 +2949,7 @@
 
                 let stars = 1; if (finalScore >= 2000) stars = 2;
                 if (finalScore >= 3000 && gameState.balancedMealsCount >= 1 && gameState.health === gameState.maxHealth && !gameState.experiencedCrash) stars = 3;
-                if (!gameState.experiencedCrash) { saveData.stats.cleanRuns++; checkAndUnlockAchievements(this); }
+                if (!gameState.experiencedCrash) saveData.stats.cleanRuns++;
 
                 let startY = 170; let textStyle = { fontSize: '26px', color: '#FFF' }; let numStyle = { fontSize: '26px', fontStyle: 'bold', color: '#FFEB3B' };
                 this.add.text(500, startY, 'Healthy Food:', textStyle).setOrigin(1, 0.5); this.add.text(520, startY, gameState.scoreBreakdown.food.toLocaleString(), numStyle).setOrigin(0, 0.5);
@@ -2861,6 +2980,7 @@
                     if (!saveData.levels[nextLvlKey]) saveData.levels[nextLvlKey] = { unlocked: false, stars: 0, bestScore: 0 };
                     saveData.levels[nextLvlKey].unlocked = true;
                 }
+                checkAndUnlockAchievements(this);
                 SaveManager.saveGame(saveData);
                 if (isNewRecord) this.add.text(640, startY + 360, 'NEW HIGH SCORE!', { fontSize: '24px', fontStyle: 'bold', color: '#FF5252', stroke: '#FFF', strokeThickness: 2 }).setOrigin(0.5);
 
