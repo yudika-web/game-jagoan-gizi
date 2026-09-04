@@ -1856,7 +1856,14 @@
                         const data = foodData[item.id]; let obj = this.add.sprite(item.x, item.y, item.id + '_01');
                         const enemyDisplaySizes = { bacteria_blue: 80, bacteria_green: 80, bacteria_orange: 80, bacteria_red: 80 };
                         if (enemyDisplaySizes[item.id]) obj.setDisplaySize(enemyDisplaySizes[item.id], enemyDisplaySizes[item.id]);
-                        this.physics.add.existing(obj); obj.body.setSize(40, 40); obj.play('anim_' + item.id); obj.itemData = data; obj.itemId = item.id; this.enemyGroup.add(obj);
+                        this.physics.add.existing(obj);
+                        // Hitbox bakteri dibuat mengikuti ukuran visual agar serangan slide
+                        // dapat mengenai bakteri yang berada di permukaan tanah.
+                        obj.body.setSize(64, 52);
+                        obj.body.setOffset((obj.width - 64) / 2, (obj.height - 52) / 2);
+                        obj.body.setAllowGravity(false);
+                        obj.canBeSlideKilled = true;
+                        obj.play('anim_' + item.id); obj.itemData = data; obj.itemId = item.id; this.enemyGroup.add(obj);
                         
                         if (item.id === 'bacteria_green') { obj.body.setVelocityX(-150); } 
                         else if (item.id === 'bacteria_orange') { this.tweens.add({ targets: obj, y: item.y - 120, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }); } 
@@ -2157,13 +2164,23 @@
                 checkAndUnlockAchievements(this); this.events.emit('updateUI');
             }
 
-            hitEnemy(player, enemy) { 
-                if (player.body.velocity.y > 0 && player.y < enemy.y) {
+            hitEnemy(player, enemy) {
+                // Bakteri dapat dikalahkan dengan dua cara:
+                // 1. Lompat dari atas (stomp)
+                // 2. Slide/merunduk saat melewati bakteri di tanah
+                if (player.isSliding && enemy.canBeSlideKilled) {
+                    this.tweens.killTweensOf(enemy);
+                    enemy.destroy();
+                    try { if (saveData.soundOn) this.sound.play('sfx_jump'); } catch(e){}
+                    gameState.score += 50;
+                    this.showFloatingText(enemy.x, enemy.y, 'SLIDE ATTACK!', '#00E5FF');
+                    this.events.emit('updateUI');
+                } else if (player.body.velocity.y > 0 && player.y < enemy.y) {
                     player.body.setVelocityY(-500); this.tweens.killTweensOf(enemy); enemy.destroy();
                     try { if (saveData.soundOn) this.sound.play('sfx_jump'); } catch(e){}
                     gameState.score += 50; this.showFloatingText(enemy.x, enemy.y, 'STOMPED!', '#FFEB3B'); this.events.emit('updateUI');
                 } else {
-                    this.tweens.killTweensOf(enemy); enemy.destroy(); this.takeDamage(enemy.itemData.damage, 'OUCH! BACTERIA!'); 
+                    this.tweens.killTweensOf(enemy); enemy.destroy(); this.takeDamage(enemy.itemData.damage, 'OUCH! BACTERIA!');
                 }
             }
             
@@ -3155,7 +3172,7 @@
                 // tidak terpotong pada HP landscape yang lebih lebar dari 16:9.
                 mode: Phaser.Scale.FIT,
                 // Posisi ditangani Flexbox agar tidak terjadi pemusatan ganda.
-                autoCenter: Phaser.Scale.NO_CENTER,
+                autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: 1280,
                 height: 720,
                 parent: 'game-container',
