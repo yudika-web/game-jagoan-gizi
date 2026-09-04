@@ -38,8 +38,8 @@
         canvas {
             box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
             display: block;
-            max-width: 100vw;
-            max-height: 100dvh;
+            width: 100%;
+            height: 100%;
         }
         @media (orientation: portrait) {
             #game-container::after {
@@ -1065,9 +1065,9 @@
 
                 this.input.once('pointerdown', () => {
                     if (this.sound && this.sound.context && this.sound.context.state === 'suspended') this.sound.context.resume();
-                    // Audio efek dibuat setelah interaksi pengguna dan tidak lagi menahan proses masuk ke game.
+                    // Pilihan mode tampilan dilakukan sebelum masuk ke start screen.
                     this.generateSFX().catch(() => {});
-                    this.scene.start('StartScene');
+                    this.scene.start('DisplayModeScene');
                 });
             }
 
@@ -1128,6 +1128,56 @@
             }
         }
 
+        class DisplayModeScene extends Phaser.Scene {
+            constructor() { super({ key: 'DisplayModeScene' }); }
+            create() {
+                this.add.image(640, 360, 'bg_menu').setDisplaySize(1280, 720).setOrigin(0.5);
+
+                this.add.text(640, 180, 'PILIH MODE TAMPILAN', {
+                    fontSize: '34px',
+                    fontStyle: 'bold',
+                    color: '#FFF',
+                    stroke: '#000',
+                    strokeThickness: 5
+                }).setOrigin(0.5);
+
+                const options = [
+                    { text: 'FULLSCREEN', y: 300, action: () => {
+                        const enterFullscreen = () => {
+                            try {
+                                if (this.scale && this.scale.startFullscreen && !this.scale.isFullscreen) {
+                                    this.scale.startFullscreen();
+                                }
+                            } catch (e) {
+                                console.warn('Fullscreen tidak tersedia:', e);
+                            }
+                            this.scene.start('StartScene');
+                        };
+                        enterFullscreen();
+                    }},
+                    { text: 'TIDAK FULLSCREEN', y: 390, action: () => {
+                        this.scene.start('StartScene');
+                    }}
+                ];
+
+                options.forEach(opt => {
+                    const rect = this.add.rectangle(640, opt.y, 360, 60, 0xFF9800)
+                        .setInteractive({ useHandCursor: true })
+                        .setStrokeStyle(3, 0xFFFFFF);
+
+                    const txt = this.add.text(640, opt.y, opt.text, {
+                        fontSize: '24px',
+                        fontStyle: 'bold',
+                        color: '#FFFFFF'
+                    }).setOrigin(0.5);
+
+                    const tap = () => opt.action();
+                    rect.on('pointerdown', tap);
+                    txt.setInteractive({ useHandCursor: true }).on('pointerdown', tap);
+                });
+            }
+        }
+
         class MainMenuScene extends Phaser.Scene {
             constructor() { super({ key: 'MainMenuScene' }); }
             create() {
@@ -1138,10 +1188,17 @@
                     { text: 'FOODPEDIA', action: () => this.scene.start('FoodpediaScene') }, { text: 'HOW TO PLAY', action: () => this.scene.start('HowToPlayScene') },
                     { text: 'ACHIEVEMENTS', action: () => this.scene.start('AchievementScene') }, { text: 'SETTINGS', action: () => this.scene.start('SettingsScene') }
                 ];
-                let startY = 200;
+                // Posisi menu diselaraskan dengan judul JAGOAN GIZI pada background
+                // dan dibuat lebih responsif untuk layar HP landscape.
+                // Menu dibuat tepat berada di sumbu tengah judul JAGOAN GIZI.
+                const menuX = 600;
+                const startY = 235;
+                const gapY = 58;
+
                 menuButtons.forEach((btn, index) => {
-                    let rect = this.add.rectangle(640, startY + (index * 60), 340, 45, 0xFF9800).setInteractive({ useHandCursor: true }); rect.setStrokeStyle(3, 0xFFFFFF);
-                    let txt = this.add.text(640, startY + (index * 60), btn.text, { fontSize: '20px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+                    let y = startY + (index * gapY);
+                    let rect = this.add.rectangle(menuX, y, 340, 45, 0xFF9800).setInteractive({ useHandCursor: true }); rect.setStrokeStyle(3, 0xFFFFFF);
+                    let txt = this.add.text(menuX, y, btn.text, { fontSize: '20px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
                     const handleTap = () => { try { if (saveData.soundOn) this.sound.play('sfx_click'); } catch(e){} btn.action(); };
                     rect.on('pointerdown', handleTap); txt.on('pointerdown', handleTap);
                     rect.on('pointerover', () => rect.setFillStyle(0xFF5722)); rect.on('pointerout', () => rect.setFillStyle(0xFF9800));
@@ -2870,7 +2927,9 @@
                 pixelArt: true
             },
             scale: {
-                mode: Phaser.Scale.FIT,
+                // ENVELOP membuat game memenuhi layar HP landscape.
+                // Canvas tetap mempertahankan rasio 16:9 tetapi tidak tampil kecil di tengah.
+                mode: Phaser.Scale.ENVELOP,
                 autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: 1280,
                 height: 720,
@@ -2888,7 +2947,7 @@
                 }
             },
             scene: [
-                BootScene, AudioScene, StartScene, MainMenuScene, TujuanPembelajaranScene, MateriPembelajaranScene,
+                BootScene, AudioScene, StartScene, DisplayModeScene, MainMenuScene, TujuanPembelajaranScene, MateriPembelajaranScene,
                 IntroScene, GameScene, UIScene, PauseScene, SettingsScene, AchievementScene, FoodpediaScene,
                 LevelSelectScene, HowToPlayScene, GameOverScene, LevelCompleteScene, QuizScene, TutorialPopupScene,
                 SortNutrisiScene, UrutkanPencernaanScene, LevelEvaluationScene
