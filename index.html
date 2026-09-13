@@ -6,13 +6,9 @@
     <meta name="mobile-web-app-capable" content="yes">
     <title>JAGOAN GIZI</title>
     
-    <!-- Phaser 3 Library + CDN fallback -->
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-    <script>
-        if (!window.Phaser) {
-            document.write('<script src="https://unpkg.com/phaser@3.60.0/dist/phaser.min.js"><\/script>');
-        }
-    </script>
+    <!-- Phaser 3 Library Offline -->
+    <script src="assets/lib/phaser.min.js"></script>
+    
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -85,10 +81,12 @@
         #boot-status {
             position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
             padding: 24px; background: #1a1a2e; color: #fff; text-align: center;
-            font: 700 20px/1.5 "Courier New", monospace;
+            font: 700 20px/1.5 "Noto Sans", "Segoe UI", Arial, sans-serif;
         }
         #boot-status[hidden] { display: none; }
         #boot-status.error { color: #ffb4ab; }
+
+
     </style>
 </head>
 <body>
@@ -96,7 +94,34 @@
     <div id="boot-status" role="status" aria-live="polite">MENYIAPKAN JAGOAN GIZI...</div>
     <div id="game-container"></div>
 
-    <script>
+
+
+    
+<script>
+const EMBEDDED_ASSETS = {}; // Assets dipisahkan agar kompatibel dengan GitHub Pages
+function getAsset(path){
+  return EMBEDDED_ASSETS[path] || path;
+}
+function createAudioBlobURL(dataUri) {
+    if (!dataUri || !String(dataUri).startsWith('data:audio')) return dataUri;
+    try {
+        const parts = dataUri.split(',');
+        const mime = parts[0].match(/data:([^;]+)/)?.[1] || 'audio/mpeg';
+        const binary = atob(parts[1]);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return URL.createObjectURL(new Blob([bytes], { type: mime }));
+    } catch (e) {
+        console.error('Audio Blob conversion gagal:', e);
+        return dataUri;
+    }
+}
+
+</script>
+
+<script>
         window.addEventListener('error', e => {
             console.error('GAME ERROR:', e.message, e.filename, e.lineno);
         });
@@ -112,7 +137,7 @@
         }
 
         const DEBUG_MODE = false;
-        const PIXEL_FONT = '"Lucida Console", "Courier New", monospace';
+        const PIXEL_FONT = '"Noto Sans", "Segoe UI", Arial, sans-serif';
         const BODY_FONT = '"Trebuchet MS", "Segoe UI", Arial, sans-serif';
 
         function installReadableTextDefaults() {
@@ -282,13 +307,7 @@
             }
         }
 
-        const ASSET_URLS = Object.freeze({
-            character: 'https://raw.githubusercontent.com/yudika-web/db_char_boy_asset_1/main/',
-            background: 'https://raw.githubusercontent.com/yudika-web/db_background_game/main/',
-            obstacle: 'https://raw.githubusercontent.com/yudika-web/db_obstacle_jagoan_gizi/main/',
-            enemy: 'https://raw.githubusercontent.com/yudika-web/db_enemy_game_JG/main/',
-            vfx: 'https://raw.githubusercontent.com/yudika-web/db_background_game/main/'
-        });
+        const ASSET_URLS = Object.freeze({character:'assets/character/',background:'assets/background/',obstacle:'assets/obstacle/',enemy:'assets/enemy/',vfx:'assets/vfx/',audio:'assets/background/'});
 
         function setBootStatus(message, isError = false) {
             const status = document.getElementById('boot-status');
@@ -304,7 +323,7 @@
                 scene.textures.remove(key);
                 FALLBACK_TEXTURE_KEYS.delete(key);
             }
-            if (!scene.textures.exists(key)) scene.load.image(key, url);
+            if (!scene.textures.exists(key)) scene.load.image(key, getAsset(url));
         }
 
         function createFallbackTexture(scene, key, width, height, kind, color = '#4CAF50') {
@@ -368,7 +387,7 @@
         }
 
         function ensureGameplayFallbackTextures(scene) {
-            ['idle_front', 'idle_right', 'run_01', 'run_02', 'run_03', 'run_04', 'slide', 'hit', 'jump', 'doublejump', 'win']
+            ['idle_front', 'idle_right', 'run_01', 'run_02', 'run_03', 'run_04', 'slide', 'hit', 'jump', 'double_jump', 'win']
                 .forEach(key => createFallbackTexture(scene, key, 64, 96, 'player'));
 
             const enemyColors = { bacteria_blue: '#2196F3', bacteria_green: '#4CAF50', bacteria_orange: '#FF9800', bacteria_red: '#F44336' };
@@ -378,24 +397,139 @@
             });
             ['boss_idle_01', 'boss_idle_02', 'boss_idle_03', 'boss_attack', 'boss_defeat']
                 .forEach(key => createFallbackTexture(scene, key, 160, 160, 'enemy', '#9C27B0'));
-            ['mysterybox_01', 'mysterybox_02'].forEach(key => createFallbackTexture(scene, key, 80, 80, 'mystery'));
+            ['mystery_box_01', 'mystery_box_02'].forEach(key => createFallbackTexture(scene, key, 80, 80, 'mystery'));
             ['aura_shield_01', 'aura_shield_02'].forEach(key => createFallbackTexture(scene, key, 160, 180, 'aura', '#00E5FF'));
-            ['aura_doublepoin_01', 'aura_doublepoin_02'].forEach(key => createFallbackTexture(scene, key, 160, 180, 'aura', '#FFEB3B'));
-            ['aura_extralife_01', 'aura_extralife_02'].forEach(key => createFallbackTexture(scene, key, 160, 180, 'aura', '#E91E63'));
+            ['aura_double_point_01', 'aura_double_point_02'].forEach(key => createFallbackTexture(scene, key, 160, 180, 'aura', '#FFEB3B'));
+            ['aura_extra_life_01', 'aura_extra_life_02'].forEach(key => createFallbackTexture(scene, key, 160, 180, 'aura', '#E91E63'));
         }
 
-        function ensureAnimations(scene) {
-            const add = config => { if (!scene.anims.exists(config.key)) scene.anims.create(config); };
-            add({ key: 'run', frames: [ { key: 'run_01' }, { key: 'run_02' }, { key: 'run_03' }, { key: 'run_04' } ], frameRate: 10, repeat: -1 });
-            ['bacteria_blue', 'bacteria_green', 'bacteria_orange', 'bacteria_red'].forEach(color => {
-                add({ key: 'anim_' + color, frames: [ { key: color + '_01' }, { key: color + '_02' } ], frameRate: 5, repeat: -1 });
-            });
-            add({ key: 'anim_boss_idle', frames: [ { key: 'boss_idle_01' }, { key: 'boss_idle_02' }, { key: 'boss_idle_03' } ], frameRate: 3, repeat: -1 });
-            add({ key: 'anim_mysterybox', frames: [ { key: 'mysterybox_01' }, { key: 'mysterybox_02' } ], frameRate: 4, repeat: -1 });
-            add({ key: 'anim_aura_shield', frames: [ { key: 'aura_shield_01' }, { key: 'aura_shield_02' } ], frameRate: 6, repeat: -1 });
-            add({ key: 'anim_aura_doublepoin', frames: [ { key: 'aura_doublepoin_01' }, { key: 'aura_doublepoin_02' } ], frameRate: 6, repeat: -1 });
-            add({ key: 'anim_aura_extralife', frames: [ { key: 'aura_extralife_01' }, { key: 'aura_extralife_02' } ], frameRate: 6, repeat: -1 });
+        function safePlayAnimation(sprite, key, ignoreIfMissing=true) {
+    try {
+        if (!sprite || !sprite.scene || !sprite.scene.anims || !sprite.scene.anims.exists(key)) {
+            return;
         }
+
+        const anim = sprite.scene.anims.get(key);
+        if (!anim || !anim.frames || anim.frames.length === 0) {
+            return;
+        }
+
+        // Validasi texture/frame Phaser. Jangan memakai sourceSize sebagai indikator karena tidak semua frame memilikinya.
+        const valid = anim.frames.every(f => f && f.frame && f.frame.texture);
+        if (!valid) {
+            console.warn('Animasi dilewati karena frame tidak valid:', key);
+            return;
+        }
+
+        sprite.anims.stop();
+        sprite.anims.play(key, true);
+    } catch (e) {
+        if (!ignoreIfMissing) console.warn('Animation gagal:', key, e);
+    }
+}
+
+// Player animation validation patch: preserve Phaser native Animation Manager.
+function ensureAnimations(scene) {
+    // Safe animation creation: only register frames that really exist.
+    const add = config => {
+        try {
+            if (!config || !config.key || scene.anims.exists(config.key)) return;
+
+            const validFrames = (config.frames || []).filter(frame => {
+                try {
+                    const texture = scene.textures.get(frame.key);
+                    return texture && texture.key;
+                } catch (e) {
+                    return false;
+                }
+            });
+
+            if (validFrames.length > 0) {
+                scene.anims.create({
+                    ...config,
+                    frames: validFrames
+                });
+            }
+        } catch (e) {
+            console.warn('Animasi dilewati:', config && config.key, e);
+        }
+    };
+
+    add({
+        key: 'run',
+        frames: [
+            { key: 'run_01' },
+            { key: 'run_02' },
+            { key: 'run_03' },
+            { key: 'run_04' }
+        ],
+        frameRate: 10,
+        repeat: -1
+    });
+
+    ['bacteria_blue', 'bacteria_green', 'bacteria_orange', 'bacteria_red'].forEach(color => {
+        add({
+            key: 'anim_' + color,
+            frames: [
+                { key: color + '_01' },
+                { key: color + '_02' }
+            ],
+            frameRate: 5,
+            repeat: -1
+        });
+    });
+
+    add({
+        key: 'anim_boss_idle',
+        frames: [
+            { key:'boss_idle_01' },
+            { key:'boss_idle_02' },
+            { key:'boss_idle_03' }
+        ],
+        frameRate:3,
+        repeat:-1
+    });
+
+    add({
+        key:'anim_mysterybox',
+        frames:[
+            {key:'mystery_box_01'},
+            {key:'mystery_box_02'}
+        ],
+        frameRate:4,
+        repeat:-1
+    });
+
+    add({
+        key:'anim_aura_shield',
+        frames:[
+            {key:'aura_shield_01'},
+            {key:'aura_shield_02'}
+        ],
+        frameRate:6,
+        repeat:-1
+    });
+
+    add({
+        key:'anim_aura_double_point',
+        frames:[
+            {key:'aura_double_point_01'},
+            {key:'aura_double_point_02'}
+        ],
+        frameRate:6,
+        repeat:-1
+    });
+
+    add({
+        key:'anim_aura_extra_life',
+        frames:[
+            {key:'aura_extra_life_01'},
+            {key:'aura_extra_life_02'}
+        ],
+        frameRate:6,
+        repeat:-1
+    });
+}
 
         function ensureLevelFallbackTextures(scene, level) {
             createFallbackTexture(scene, 'bg_level' + level, 1280, 720, 'background');
@@ -450,7 +584,7 @@
             lowTunnel: { width: 260, height: 60, yOffset: 48, passMethod: 'slide', color: 0x455A64 }
         };
 
-        // Batas piksel nontransparan hasil audit aset tallWall_level1..8.
+        // Batas piksel nontransparan hasil audit aset tall_wall_level_1..8.
         // Koordinat right/bottom bersifat eksklusif, sesuai format bbox gambar.
         const tallWallVisualBounds = Object.freeze({
             1: { left: 0, top: 36, right: 80, bottom: 224, sourceW: 80, sourceH: 260 },
@@ -1147,7 +1281,7 @@
                 if (!saveData.musicOn) { this.currentKey = key; if(this.currentBGM) this.currentBGM.stop(); return; }
                 if (this.currentKey === key && this.currentBGM && this.currentBGM.isPlaying) return;
                 if (this.currentBGM) this.currentBGM.stop();
-                try { this.currentBGM = this.sound.add(key, { loop: true, volume: 0.4 }); this.currentBGM.play(); this.currentKey = key; } catch(e) {}
+                try { this.currentBGM = this.sound.add(key, { loop: true, volume: 0.4 }); this.currentBGM.play(); this.currentKey = key; } catch(e) { console.error('AudioScene playMusic gagal:', key, e); }
             }
             stopMusic() { if (this.currentBGM) { this.currentBGM.stop(); this.currentBGM = null; this.currentKey = ''; } }
             toggleMusic() {
@@ -1203,10 +1337,10 @@
 
                 const bgBaseUrl = ASSET_URLS.background;
 
-                this.load.audio('bgm_start', bgBaseUrl + 'Opening%20Game%20Start%20Screen.mp3');
-                this.load.audio('bgm_menu', bgBaseUrl + 'In%20Menu.mp3');
+                this.load.audio('bgm_start', createAudioBlobURL(getAsset('assets/background/opening_game_start.mp3')));
+                this.load.audio('bgm_menu', createAudioBlobURL(getAsset('assets/background/in_menu.mp3')));
 
-                this.load.image('bg_start', bgBaseUrl + 'START%20SCREEN.png'); this.load.image('bg_menu', bgBaseUrl + 'MENU%20SCREEN%20BOY.png');
+                this.load.image('bg_start', getAsset('assets/background/start_screen.png')); this.load.image('bg_menu', getAsset('assets/background/menu_screen_boy.png'));
             }
 
             create() {
@@ -1338,7 +1472,28 @@
             }
         }
 
-        class MainMenuScene extends Phaser.Scene {
+        
+        // ==========================================
+        // EXIT GAME HANDLER
+        // ==========================================
+        function exitGame() {
+            const yakin = confirm('Apakah Anda yakin ingin keluar dari JAGOAN GIZI?');
+            if (!yakin) return;
+
+            // Untuk versi Electron EXE
+            if (window.electronAPI && window.electronAPI.closeApp) {
+                window.electronAPI.closeApp();
+                return;
+            }
+
+            // Untuk browser
+            window.close();
+            setTimeout(() => {
+                alert('Game selesai. Silakan tutup tab ini.');
+            }, 300);
+        }
+
+class MainMenuScene extends Phaser.Scene {
             constructor() { super({ key: 'MainMenuScene' }); }
             create() {
                 this.scene.get('AudioScene').playMusic('bgm_menu'); this.add.image(640, 360, 'bg_menu').setDisplaySize(1280, 720).setOrigin(0.5);
@@ -1346,13 +1501,13 @@
                     { text: 'START GAME', action: () => { this.scene.start('IntroScene'); } }, { text: 'LEVEL SELECT', action: () => this.scene.start('LevelSelectScene') },
                     { text: 'TUJUAN PEMBELAJARAN', action: () => this.scene.start('TujuanPembelajaranScene') }, { text: 'MATERI PEMBELAJARAN', action: () => this.scene.start('MateriPembelajaranScene') },
                     { text: 'FOODPEDIA', action: () => this.scene.start('FoodpediaScene') }, { text: 'HOW TO PLAY', action: () => this.scene.start('HowToPlayScene') },
-                    { text: 'ACHIEVEMENTS', action: () => this.scene.start('AchievementScene') }, { text: 'SETTINGS', action: () => this.scene.start('SettingsScene') }
+                    { text: 'ACHIEVEMENTS', action: () => this.scene.start('AchievementScene') }, { text: 'SETTINGS', action: () => this.scene.start('SettingsScene') }, { text: 'EXIT GAME', action: () => exitGame() }
                 ];
                 // Posisi menu diselaraskan dengan judul JAGOAN GIZI pada background
                 // dan dibuat lebih responsif untuk layar HP landscape.
                 // Menu dibuat tepat berada di sumbu tengah judul JAGOAN GIZI.
-                const menuX = 600;
-                const startY = 235;
+                const menuX = 620;
+                const startY = 185;
                 const gapY = 58;
 
                 menuButtons.forEach((btn, index) => {
@@ -1466,42 +1621,49 @@
                     this.load.off('progress', this.levelLoadProgressHandler);
                 });
 
-                queueImage(this, bgKey, ASSET_URLS.background + 'BG%20Level%20' + level + '.png');
+                queueImage(this, bgKey, getAsset('assets/background/bg_level_' + level + '.png'));
                 if (!this.cache.audio.exists(musicKey)) {
-                    const suffix = level === 8 ? '%20(Final%20Level)' : '';
-                    this.load.audio(musicKey, ASSET_URLS.background + 'In%20Game%20Play%200' + level + suffix + '.mp3');
+                    const musicFile = 'game_play_0' + level + '.mp3';
+                    this.load.audio(musicKey, createAudioBlobURL(getAsset('assets/background/' + musicFile)));
                 }
 
                 const characterFiles = {
                     idle_front: 'player_idle_01_front.png', idle_right: 'player_idle_02_right.png',
                     run_01: 'player_run_01.png', run_02: 'player_run_02.png', run_03: 'player_run_03.png', run_04: 'player_run_04.png',
                     slide: 'player_slide.png', hit: 'player_hit.png', jump: 'player_jump.png',
-                    doublejump: 'player_doublejump.png', win: 'player_win.png'
+                    double_jump: 'player_double_jump.png', win: 'player_win.png'
                 };
-                Object.entries(characterFiles).forEach(([key, file]) => queueImage(this, key, ASSET_URLS.character + file));
+                Object.entries(characterFiles).forEach(([key, file]) => queueImage(this, key, getAsset('assets/character/' + file)));
 
-                ['mysterybox_01', 'mysterybox_02', 'aura_shield_01', 'aura_shield_02',
-                    'aura_doublepoin_01', 'aura_doublepoin_02', 'aura_extralife_01', 'aura_extralife_02']
-                    .forEach(key => queueImage(this, key, ASSET_URLS.vfx + key + '.png'));
+                ['mystery_box_01', 'mystery_box_02', 'aura_shield_01', 'aura_shield_02',
+                    'aura_double_point_01', 'aura_double_point_02', 'aura_extra_life_01', 'aura_extra_life_02']
+                    .forEach(key => queueImage(this, key, getAsset('assets/vfx/' + key + '.png')));
 
                 const enemyIds = new Set(levelsData[level - 1].items.filter(item => item.type === 'enemy').map(item => item.id));
                 if (level === 8) enemyIds.add('bacteria_green');
                 enemyIds.forEach(id => {
-                    queueImage(this, id + '_01', ASSET_URLS.enemy + id + '_01.png');
-                    queueImage(this, id + '_02', ASSET_URLS.enemy + id + '_02.png');
+                    queueImage(this, id + '_01', getAsset('assets/enemy/' + id + '_01.png'));
+                    queueImage(this, id + '_02', getAsset('assets/enemy/' + id + '_02.png'));
                 });
                 if (level === 8) {
                     ['boss_idle_01', 'boss_idle_02', 'boss_idle_03', 'boss_attack', 'boss_defeat'].forEach(key => {
                         const file = key.startsWith('boss_idle_')
                             ? 'boss_sugarmonster_idle_' + key.slice(-2) + '.png'
                             : 'boss_sugarmonster_' + key.replace('boss_', '') + '_01.png';
-                        queueImage(this, key, ASSET_URLS.enemy + file);
+                        queueImage(this, key, getAsset('assets/enemy/' + file));
                     });
                 }
 
                 ['lowBox', 'lowTunnel', 'overheadBar', 'stackedCrate', 'tallWall'].forEach(key => {
                     const textureKey = key + '_level' + level;
-                    queueImage(this, textureKey, ASSET_URLS.obstacle + textureKey + '.png');
+                    const obstacleFileMap = {
+                        lowBox: 'low_box_level_' + level + '.png',
+                        lowTunnel: 'low_tunnel_level_' + level + '.png',
+                        overheadBar: 'overhead_bar_level_' + level + '.png',
+                        stackedCrate: 'stacked_crate_level_' + level + '.png',
+                        tallWall: 'tall_wall_level_' + level + '.png'
+                    };
+                    queueImage(this, textureKey, getAsset('assets/obstacle/' + obstacleFileMap[key]));
                 });
 
                 this.levelLoadingText = this.add.text(640, 650, 'MENYIAPKAN LEVEL ' + level + '...', {
@@ -1522,6 +1684,9 @@
                     gameState.savedCheckpoint = null; this.add.rectangle(0, 0, 1280, 720, 0x000000).setOrigin(0,0);
                     this.add.text(640, 200, `MEMASUKI LEVEL ${level}`, { fontSize: '48px', fontStyle: 'bold', color: '#FFEB3B' }).setOrigin(0.5);
                     let storyText = storyData[level - 1] || "Bersiaplah, Jagoan!";
+                    if (level === 1) {
+                        storyText += "\n\n📱 KONTROL HP\nSwipe kanan: bergerak kanan\nSwipe kiri: bergerak kiri\nSwipe atas: lompat\nSaat melawan boss gunakan swipe untuk menghindari serangan.";
+                    }
                     const story = this.add.text(640, 350, storyText, {
                         fontFamily: BODY_FONT, fontSize: '25px', color: '#FFF', align: 'center',
                         wordWrap: { width: 960 }, lineSpacing: 8
@@ -1563,16 +1728,19 @@
                             console.log('Tap intro diterima, memulai level:', level);
                             // Jalankan perpindahan pada tick berikutnya agar pergantian scene
                             // tidak terjadi di tengah dispatch pointerdown Phaser.
-                            this.time.delayedCall(0, () => {
-                                try {
-                                    currentLevel = level;
-                                    this.scene.start('GameScene', { level });
-                                } catch (error) {
-                                    this.introStarting = false;
-                                    this.input.enabled = true;
-                                    showSceneLoadError(this, error);
-                                }
-                            });
+                            try {
+                                currentLevel = level;
+                                // Bersihkan scene runtime lama sebelum masuk ke level baru.
+                                // Hindari konflik lifecycle Phaser akibat timer/input dari scene sebelumnya.
+                                ['GameScene', 'UIScene', 'PauseScene', 'GameOverScene', 'LevelEvaluationScene'].forEach(key => {
+                                    try { if (this.scene.isActive(key) || this.scene.isPaused(key) || this.scene.isSleeping(key)) this.scene.stop(key); } catch(e) {}
+                                });
+                                this.scene.start('GameScene', { level });
+                            } catch (error) {
+                                this.introStarting = false;
+                                this.input.enabled = true;
+                                showSceneLoadError(this, error);
+                            }
                         } catch (error) {
                             this.introStarting = false;
                             this.input.enabled = true;
@@ -1776,9 +1944,9 @@
                 
                 this.cameras.main.startFollow(this.player, true, 1, 0); this.cameras.main.followOffset.set(-300, 80); 
 
-                this.auraShield = this.add.sprite(this.player.x, this.player.y - 60, 'aura_shield_01').setDisplaySize(150, 180).setVisible(false); this.auraShield.play('anim_aura_shield');
-                this.auraDouble = this.add.sprite(this.player.x, this.player.y - 60, 'aura_doublepoin_01').setDisplaySize(150, 180).setVisible(false); this.auraDouble.play('anim_aura_doublepoin');
-                this.auraLife = this.add.sprite(this.player.x, this.player.y - 60, 'aura_extralife_01').setDisplaySize(150, 180).setVisible(false); this.auraLife.play('anim_aura_extralife');
+                this.auraShield = this.add.sprite(this.player.x, this.player.y - 60, 'aura_shield_01').setDisplaySize(150, 180).setVisible(false); safePlayAnimation(this.auraShield, 'anim_aura_shield');
+                this.auraDouble = this.add.sprite(this.player.x, this.player.y - 60, 'aura_double_point_01').setDisplaySize(150, 180).setVisible(false); safePlayAnimation(this.auraDouble, 'anim_aura_double_point');
+                this.auraLife = this.add.sprite(this.player.x, this.player.y - 60, 'aura_extra_life_01').setDisplaySize(150, 180).setVisible(false); safePlayAnimation(this.auraLife, 'anim_aura_extra_life');
 
                 this.generateLevel();
 
@@ -1863,7 +2031,7 @@
                         obj.body.setOffset((obj.width - 64) / 2, (obj.height - 52) / 2);
                         obj.body.setAllowGravity(false);
                         obj.canBeSlideKilled = true;
-                        obj.play('anim_' + item.id); obj.itemData = data; obj.itemId = item.id; this.enemyGroup.add(obj);
+                        safePlayAnimation(obj, 'anim_' + item.id); obj.itemData = data; obj.itemId = item.id; this.enemyGroup.add(obj);
                         
                         if (item.id === 'bacteria_green') { obj.body.setVelocityX(-150); } 
                         else if (item.id === 'bacteria_orange') { this.tweens.add({ targets: obj, y: item.y - 120, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }); } 
@@ -1879,7 +2047,7 @@
                             this.levelLoopTimers.push(enemyFireTimer);
                         }
                     } else if (item.type === 'quizBox') {
-                        let obj = this.add.sprite(item.x, item.y, 'mysterybox_01'); obj.setDisplaySize(80, 80); obj.play('anim_mysterybox');
+                        let obj = this.add.sprite(item.x, item.y, 'mystery_box_01'); obj.setDisplaySize(80, 80); safePlayAnimation(obj, 'anim_mysterybox');
                         this.physics.add.existing(obj); obj.body.setSize(40, 40); obj.isQuizBox = true; this.foodGroup.add(obj); 
                     } else if (item.type === 'obstacle') {
                         const oData = obstacleData[item.id];
@@ -2031,12 +2199,20 @@
                     this.player.body.setSize(40, 40); this.player.body.setOffset(this.player.width/2 - 20, this.player.height - 40); 
                     this.mobileInput.slide = false;
                     this.time.delayedCall(500, () => {
-                        this.player.isSliding = false; this.player.anims.play('run', true);
+                        this.player.isSliding = false; safePlayAnimation(this.player, 'run');
                         this.player.body.setSize(40, 80); this.player.body.setOffset(this.player.width/2 - 20, this.player.height - 80);
                     });
                 } else if (!this.player.isSliding) {
-                    if (!onGround) { this.player.anims.stop(); if (this.player.jumps > 1) this.player.setTexture('doublejump'); else this.player.setTexture('jump'); } 
-                    else { this.player.anims.play('run', true); }
+                    if (!onGround) { this.player.anims.stop(); if (this.player.jumps > 1) this.player.setTexture('double_jump'); else this.player.setTexture('jump'); } 
+                    else {
+                        // Patch sprite animation mapping:
+                        // Jangan reset texture ke run_01 setiap update.
+                        // Phaser animation manager akan mengganti frame ke run_02-04.
+                        // Reset di sini membuat animasi selalu kembali ke frame pertama.
+                        if (!this.player.anims.isPlaying || this.player.anims.currentAnim?.key !== 'run') {
+                            safePlayAnimation(this.player, 'run');
+                        }
+                    }
                 }
 
                 this.enemyGroup.getChildren().forEach(enemy => {
@@ -2249,7 +2425,7 @@
             bossSummonBacteria() {
                 let x = this.boss.x - 50; let y = this.levelConfig.groundY - 40;
                 let data = foodData['bacteria_green']; let obj = this.add.sprite(x, y, 'bacteria_green_01'); obj.setDisplaySize(80, 80);
-                this.physics.add.existing(obj); obj.play('anim_bacteria_green'); obj.itemData = data; obj.itemId = 'bacteria_green'; this.enemyGroup.add(obj);
+                this.physics.add.existing(obj); safePlayAnimation(obj, 'anim_bacteria_green'); obj.itemData = data; obj.itemId = 'bacteria_green'; this.enemyGroup.add(obj);
                 obj.body.setSize(40, 40); obj.body.setAllowGravity(false); obj.body.setVelocityX(Phaser.Math.Between(-150, -300)); 
                 this.time.delayedCall(12000, () => { if (obj && obj.active) { obj.destroy(); } });
             }
@@ -3100,11 +3276,16 @@
                 let resetTxt = this.add.text(640, 480, 'RESET PROGRESS', { fontSize: '24px', fontStyle: 'bold', color: '#FFF' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
                 const handleReset = () => {
                     try { if (saveData.soundOn) this.sound.play('sfx_click'); } catch(e){}
-                    if (window.confirm("Apakah kamu yakin ingin menghapus semua progress? Data yang dihapus tidak bisa dikembalikan.")) { 
-                        SaveManager.resetProgress(); saveData = SaveManager.loadGame(); 
-                        soundTxt.setText(`SFX: ${saveData.soundOn ? 'ON' : 'OFF'}`); musicTxt.setText(`MUSIC: ${saveData.musicOn ? 'ON' : 'OFF'}`);
-                        this.scene.get('AudioScene').toggleMusic(); alert("Progress berhasil direset!");
-                    }
+                    // Custom confirmation agar tidak keluar fullscreen seperti browser confirm()
+                    const overlay = this.add.rectangle(640, 360, 600, 240, 0x000000, 0.85).setDepth(1000);
+                    const msg = this.add.text(640, 300, 'RESET PROGRESS?\nSemua data akan dihapus.', { fontFamily:'Noto Sans, Segoe UI, Arial', fontSize:'26px', color:'#FFFFFF', align:'center' }).setOrigin(0.5).setDepth(1001);
+                    const yes = this.add.rectangle(530, 410, 160, 55, 0xF44336).setInteractive().setDepth(1001);
+                    const no = this.add.rectangle(750, 410, 160, 55, 0x4CAF50).setInteractive().setDepth(1001);
+                    const yt = this.add.text(530,410,'YA',{fontFamily:'Noto Sans, Segoe UI, Arial',fontSize:'24px',color:'#FFF'}).setOrigin(0.5).setDepth(1002);
+                    const nt = this.add.text(750,410,'BATAL',{fontFamily:'Noto Sans, Segoe UI, Arial',fontSize:'24px',color:'#FFF'}).setOrigin(0.5).setDepth(1002);
+                    const closeModal=()=>{[overlay,msg,yes,no,yt,nt].forEach(o=>o.destroy());};
+                    yes.on('pointerdown',()=>{ SaveManager.resetProgress(); saveData = SaveManager.loadGame(); soundTxt.setText(`SFX: ${saveData.soundOn ? 'ON' : 'OFF'}`); musicTxt.setText(`MUSIC: ${saveData.musicOn ? 'ON' : 'OFF'}`); closeModal(); });
+                    no.on('pointerdown',closeModal);
                 };
                 resetBtn.on('pointerdown', handleReset); resetTxt.on('pointerdown', handleReset);
                 
